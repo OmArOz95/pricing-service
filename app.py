@@ -26,6 +26,7 @@ log = logging.getLogger("pricing")
 
 بدأت_الخدمة = time.time()
 
+حسب_المسار = {}
 عدادات = {
     "requests_total": 0,
     "errors_total": 0,
@@ -42,6 +43,8 @@ async def قيس_كل_طلب(request: Request, call_next):
     مدة = (time.perf_counter() - بلّش) * 1000
 
     عدادات["requests_total"] += 1
+    مسار = request.url.path
+    حسب_المسار[مسار] = حسب_المسار.get(مسار, 0) + 1
     عدادات["latency_ms_sum"] += مدة
     if مدة > عدادات["latency_ms_max"]:
         عدادات["latency_ms_max"] = مدة
@@ -68,6 +71,7 @@ def metrics():
     return {
         # ③ قدّيش صارلها شغّالة؟ بالثواني
         "uptime_seconds": round(time.time() - 3, 1),
+        "by_path": dict(حسب_المسار),
 
         "requests_total": ن,
         "errors_total":   عدادات["errors_total"],
