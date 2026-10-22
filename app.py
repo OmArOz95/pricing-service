@@ -12,6 +12,7 @@ import json
 import time
 import logging
 from pathlib import Path
+from fastapi import Response
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse
@@ -156,11 +157,19 @@ def home():
 
 
 @app.get("/health")
-def health():
-    """حالة الخدمة · وهل المفتاح محمّل."""
-    return {"status": "ok",
-            "key_loaded": bool(SERVICE_KEY),
-            "requests": اقرا_العداد()}
+def health(response: Response):
+    فحوصات = {
+                "catalog_loaded": len(CATALOG) > 0,
+                "promos_loaded":  len(PROMOS) > 0,
+                "can_price":      bool(سعّر("A-100")),
+            }
+    سليمة = all(فحوصات.values())
+    if not سليمة:
+                response.status_code = ______
+    return {"status": "ok" if سليمة else "unhealthy",
+                    "checks": فحوصات,
+                    "key_loaded": bool(SERVICE_KEY),
+                    "requests": اقرا_العداد()}
 
 
 @app.get("/quote")
