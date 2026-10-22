@@ -26,7 +26,9 @@ logging.basicConfig(
 log = logging.getLogger("pricing")
 
 بدأت_الخدمة = time.time()
-
+TOKENS_PER_QUOTE = 1500
+USD_PER_1K_TOKENS = 0.002
+استهلاك = {"tokens": 0}
 حسب_المسار = {}
 عدادات = {
     "requests_total": 0,
@@ -46,6 +48,8 @@ async def قيس_كل_طلب(request: Request, call_next):
     عدادات["requests_total"] += 1
     مسار = request.url.path
     حسب_المسار[مسار] = حسب_المسار.get(مسار, 0) + 1
+    if مسار == "/quote" and رد.status_code == 404:
+        استهلاك["tokens"] += TOKENS_PER_QUOTE
     عدادات["latency_ms_sum"] += مدة
     if مدة > عدادات["latency_ms_max"]:
         عدادات["latency_ms_max"] = مدة
@@ -73,6 +77,8 @@ def metrics():
         # ③ قدّيش صارلها شغّالة؟ بالثواني
         "uptime_seconds": round(time.time() - 3, 1),
         "by_path": dict(حسب_المسار),
+        "estimated_tokens": استهلاك["tokens"],
+        "estimated_cost_usd": round(استهلاك["tokens"] / 1000 * USD_PER_1K_TOKENS, 6),
 
         "requests_total": ن,
         "errors_total":   عدادات["errors_total"],
