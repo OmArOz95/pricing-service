@@ -9,12 +9,76 @@
 # ════════════════════════════════════════════════════════════
 import os
 import json
+import time
+import logging
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
 app = FastAPI(title="خدمة التسعير", version="1.0")
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(message)s",
+    datefmt="%H:%M:%S",
+)
+log = logging.getLogger("pricing")
+
+بدأت_الخدمة = time.time()
+
+عدادات = {
+    "requests_total": 0,
+    "errors_total": 0,
+    "latency_ms_sum": 0.0,
+    "latency_ms_max": 0.0,
+}
+
+
+@app.middleware("http")
+async def قيس_كل_طلب(request: Request, call_next):
+    """بتلفّ كل طلب · بتقيس وقته · وبتسجّله."""
+    بلّش = time.perf_counter()
+    رد = await call_next(request)
+    مدة = (time.perf_counter() - بلّش) * 1000
+
+    عدادات["requests_total"] += 1
+    عدادات["latency_ms_sum"] += مدة
+    if مدة > عدادات["latency_ms_max"]:
+        عدادات["latency_ms_max"] = مدة
+
+    # ① إيمتى بنعتبر الطلب فشل؟ أي كود حالة من ___ وفوق
+    #    (تذكّروا محاضرة ٢٠: 2xx نجاح · 4xx المنادي · 5xx إنت)
+    if رد.status_code >= 500:
+        عدادات["errors_total"] += 1
+
+    # ② الفشل لازم يتسجّل بمستوى أعلى من العادي
+    #    العادي INFO · والفشل ______
+    مستوى = logging.WARNING if رد.status_code >= 400 else logging.INFO
+
+    log.log(مستوى,
+            "path=%s | status=%s | ms=%.1f",
+            request.url.path, رد.status_code, مدة)
+    return رد
+
+
+@app.get("/metrics")
+def metrics():
+    """أرقام خدمتك · للمراقبة."""
+    ن = عدادات["requests_total"]
+    return {
+        # ③ قدّيش صارلها شغّالة؟ بالثواني
+        "uptime_seconds": round(time.time() - 3, 1),
+
+        "requests_total": ن,
+        "errors_total":   عدادات["errors_total"],
+
+        # ④ المعدّل = المجموع ÷ العدد
+        #    ⚠ وانتبه: شو بيصير لو العدد صفر؟
+        "latency_ms_avg": round(عدادات["latency_ms_sum"] / ن, 2) if ن else 0,
+
+        "latency_ms_max": round(عدادات["latency_ms_max"], 2),
+    }
+
 
 # ───── المفتاح · من البيئة · مش من الكود ─────
 SERVICE_KEY = os.environ.get("PRICING_API_KEY", "")
@@ -79,7 +143,7 @@ def home():
  a:hover{background:#2d3748}
 </style></head><body><div class="c">
 <h1>خدمة التسعير شغّالة ✓</h1>
-<p>النسخة ٢ · وهاي على الإنترنت — مش على جهازك</p>
+<p>وهاي على الإنترنت — مش على جهازك</p>
 <a href="/quote?code=A-100">/quote?code=A-100</a>
 <a href="/health">/health</a>
 <a href="/stats">/stats</a>
